@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Configure Family Request Bot</title>
+    <title>Configuration Demande d'ajout</title>
     <style>
         body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #111; color: white; margin: 0; }
         .container { background: #222; padding: 2rem; border-radius: 8px; width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); text-align: center; }
@@ -15,17 +15,17 @@
 </head>
 <body>
     <div class="container">
-        <h1>Configure Addon</h1>
-        <p>Enter your Telegram Bot details to receive content requests from your family.</p>
+        <h1>Configuration</h1>
+        <p>Entrez vos identifiants Telegram pour recevoir les demandes d'ajout de votre famille.</p>
         <label for="botToken" style="display:block; text-align:left; font-size: 0.9rem;">Bot Token</label>
         <input type="text" id="botToken" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz">
         
         <label for="chatId" style="display:block; text-align:left; font-size: 0.9rem;">Chat ID</label>
         <input type="text" id="chatId" placeholder="-100123456789">
         
-        <button onclick="install()">Install Addon</button>
+        <button onclick="install()">Installer l'Addon</button>
         <div class="footer">
-            Your credentials are encoded in the URL and never stored on the server.
+            Vos identifiants sont encodés dans l'URL et ne sont jamais stockés sur le serveur.
         </div>
     </div>
     <script>

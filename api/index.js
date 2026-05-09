@@ -30,20 +30,29 @@ app.use((req, res, next) => {
 });
 
 app.get('/:config/manifest.json', (req, res) => {
+    const { config } = req.params;
+    const decoded = decodeConfig(config);
+    const hasValidConfig = decoded && decoded.t && decoded.c;
+
     const manifest = {
         id: 'com.family.requestbot',
         version: '1.0.0',
-        name: 'Family Request Bot',
+        name: "Demande d'ajout",
         description: 'Request missing movies and shows from the administrator.',
         resources: ['stream'],
         types: ['movie', 'series'],
         idPrefixes: ['tt'],
         behaviorHints: {
             configurable: true,
-            configurationRequired: true
+            configurationRequired: !hasValidConfig // Only require config if it's missing
         }
     };
     res.send(manifest);
+});
+
+// Fix for Stremio's "Configure" button path
+app.get('/:config/configure', (req, res) => {
+    res.redirect('/configure.html');
 });
 
 app.get('/:config/stream/:type/:id', (req, res) => {
@@ -55,8 +64,8 @@ app.get('/:config/stream/:type/:id', (req, res) => {
     const triggerUrl = `${protocol}://${host}/${config}/trigger/${type}/${cleanId}`;
     
     const stream = {
-        name: 'Family Request Bot',
-        title: '📥 Click here to notify Admin to download this title',
+        name: "Demande d'ajout",
+        title: "📥 Envoie une demande d'ajout",
         url: triggerUrl,
         behaviorHints: {
             notWebReady: false
@@ -77,7 +86,7 @@ app.get('/:config/trigger/:type/:id', async (req, res) => {
     const cacheKey = `${config}:${id}`;
     const now = Date.now();
     if (cache.has(cacheKey) && now - cache.get(cacheKey) < 300000) {
-        return res.redirect('https://raw.githubusercontent.com/stremio/stremio-addon-helloworld/master/assets/success.mp4');
+        return res.redirect('https://cdn.jsdelivr.net/gh/stremio/stremio-addon-helloworld@master/assets/success.mp4');
     }
     cache.set(cacheKey, now);
 
@@ -115,7 +124,7 @@ app.get('/:config/trigger/:type/:id', async (req, res) => {
         console.error('Telegram notification failed', e);
     }
 
-    res.redirect('https://raw.githubusercontent.com/stremio/stremio-addon-helloworld/master/assets/success.mp4');
+    res.redirect('https://cdn.jsdelivr.net/gh/stremio/stremio-addon-helloworld@master/assets/success.mp4');
 });
 
 // Root redirect to configure
