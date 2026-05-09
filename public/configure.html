@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Configure Family Request Bot</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #111; color: white; margin: 0; }
+        .container { background: #222; padding: 2rem; border-radius: 8px; width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); text-align: center; }
+        h1 { margin-top: 0; }
+        p { color: #ccc; margin-bottom: 1.5rem; }
+        input { width: 100%; padding: 0.75rem; margin: 0.5rem 0 1.5rem 0; border-radius: 4px; border: 1px solid #444; background: #333; color: white; box-sizing: border-box; }
+        button { width: 100%; padding: 0.75rem; border-radius: 4px; border: none; background: #e50914; color: white; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #ff0a16; }
+        .footer { margin-top: 1.5rem; font-size: 0.8rem; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Configure Addon</h1>
+        <p>Enter your Telegram Bot details to receive content requests from your family.</p>
+        <label for="botToken" style="display:block; text-align:left; font-size: 0.9rem;">Bot Token</label>
+        <input type="text" id="botToken" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz">
+        
+        <label for="chatId" style="display:block; text-align:left; font-size: 0.9rem;">Chat ID</label>
+        <input type="text" id="chatId" placeholder="-100123456789">
+        
+        <button onclick="install()">Install Addon</button>
+        <div class="footer">
+            Your credentials are encoded in the URL and never stored on the server.
+        </div>
+    </div>
+    <script>
+        function install() {
+            const token = document.getElementById('botToken').value.trim();
+            const chat = document.getElementById('chatId').value.trim();
+            if (!token || !chat) return alert('Please fill both fields');
+            
+            try {
+                const config = btoa(JSON.stringify({ t: token, c: chat }));
+                const url = window.location.host + '/' + config + '/manifest.json';
+                window.location.href = 'stremio://' + url;
+            } catch (e) {
+                alert('Error encoding configuration: ' + e.message);
+            }
+        }
+    </script>
+</body>
+</html>
