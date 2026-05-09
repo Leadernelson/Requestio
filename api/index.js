@@ -36,7 +36,7 @@ app.get('/:config/manifest.json', (req, res) => {
 
     const manifest = {
         id: 'com.family.requestbot',
-        version: '1.0.3',
+        version: '1.0.4',
         name: "Demande d'ajout",
         description: 'Demander des films et séries à l\'administrateur.',
         resources: ['stream'],
@@ -77,7 +77,11 @@ app.get('/:config/stream/:type/:id', (req, res) => {
 app.get('/:config/trigger/:type/:id', async (req, res) => {
     const { config, type, id } = req.params;
     const decoded = decodeConfig(config);
+    const host = req.get('host');
+    const protocol = req.headers['x-forwarded-proto'] || (host.includes('localhost') ? 'http' : 'https');
     
+    console.log(`Triggered request for ${id}`);
+
     if (!decoded || !decoded.t || !decoded.c) {
         return res.status(400).send('Configuration invalide');
     }
@@ -85,9 +89,12 @@ app.get('/:config/trigger/:type/:id', async (req, res) => {
     const cacheKey = `${config}:${id}`;
     const now = Date.now();
     
+    // Local Success Video URL (served by Vercel)
+    const successVideoUrl = `${protocol}://${host}/success.mp4`;
+
     // Check cache
     if (cache.has(cacheKey) && now - cache.get(cacheKey) < 30000) { // 30s debounce
-        return res.status(410).send('Déjà demandé');
+        return res.redirect(successVideoUrl);
     }
     cache.set(cacheKey, now);
 
@@ -125,9 +132,8 @@ app.get('/:config/trigger/:type/:id', async (req, res) => {
     }
 
     // FINAL FIX FOR ANDROID TV: 
-    // Instead of redirecting to a video that hangs, we return "HTTP 410 Gone".
-    // This forces the Stremio player to realize there is no video and EXIT immediately.
-    res.status(410).send('Demande envoyée avec succès');
+    // Redirect to the perfectly hosted local video on Vercel
+    res.redirect(successVideoUrl);
 });
 
 app.get('/', (req, res) => {
