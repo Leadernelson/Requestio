@@ -10,7 +10,7 @@ const app = express();
 
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Debounce cache (in-memory) - Note: Vercel functions are ephemeral, so this is per-instance.
+// Debounce cache (in-memory)
 const cache = new Map();
 
 function decodeConfig(config) {
@@ -36,21 +36,20 @@ app.get('/:config/manifest.json', (req, res) => {
 
     const manifest = {
         id: 'com.family.requestbot',
-        version: '1.0.0',
+        version: '1.0.1',
         name: "Demande d'ajout",
-        description: 'Request missing movies and shows from the administrator.',
+        description: 'Demander des films et séries à l\'administrateur.',
         resources: ['stream'],
         types: ['movie', 'series'],
         idPrefixes: ['tt'],
         behaviorHints: {
             configurable: true,
-            configurationRequired: !hasValidConfig // Only require config if it's missing
+            configurationRequired: !hasValidConfig
         }
     };
     res.send(manifest);
 });
 
-// Fix for Stremio's "Configure" button path
 app.get('/:config/configure', (req, res) => {
     res.redirect('/configure.html');
 });
@@ -79,55 +78,53 @@ app.get('/:config/trigger/:type/:id', async (req, res) => {
     const { config, type, id } = req.params;
     const decoded = decodeConfig(config);
     
-    if (!decoded || !decoded.t || !decoded.c) {
-        return res.status(400).send('Invalid configuration');
-    }
+    // 1. IMMEDIATE REDIRECT (Android TV Fix)
+    // We send the video immediately so the player sees 'data' and closes once it finishes.
+    // The CDN link is much faster than GitHub raw.
+    res.redirect('https://cdn.jsdelivr.net/gh/stremio/stremio-addon-helloworld@master/assets/success.mp4');
+
+    // 2. BACKGROUND PROCESSING
+    // The rest of the code runs asynchronously WITHOUT making the user wait.
+    if (!decoded || !decoded.t || !decoded.c) return;
 
     const cacheKey = `${config}:${id}`;
     const now = Date.now();
-    if (cache.has(cacheKey) && now - cache.get(cacheKey) < 300000) {
-        return res.redirect('https://cdn.jsdelivr.net/gh/stremio/stremio-addon-helloworld@master/assets/success.mp4');
-    }
+    if (cache.has(cacheKey) && now - cache.get(cacheKey) < 300000) return;
     cache.set(cacheKey, now);
 
-    let title = id;
-    try {
-        const imdbId = id.split(':')[0];
-        const metaRes = await fetch(`https://cinemeta-live.strem.io/meta/${type}/${imdbId}.json`);
-        const metaData = await metaRes.json();
-        if (metaData && metaData.meta) {
-            title = metaData.meta.name;
-            if (id.includes(':')) {
-                const parts = id.split(':');
-                title += ` (S${parts[1]}E${parts[2]})`;
+    // Fetch Metadata & Notify in background
+    (async () => {
+        let title = id;
+        try {
+            const imdbId = id.split(':')[0];
+            const metaRes = await fetch(`https://cinemeta-live.strem.io/meta/${type}/${imdbId}.json`);
+            const metaData = await metaRes.json();
+            if (metaData && metaData.meta) {
+                title = metaData.meta.name;
+                if (id.includes(':')) {
+                    const parts = id.split(':');
+                    title += ` (S${parts[1]}E${parts[2]})`;
+                }
             }
-        }
-    } catch (e) {
-        console.error('Metadata fetch failed', e);
-    }
+        } catch (e) {}
 
-    const message = `🎬 <b>New Content Request</b>\n\n<b>Title:</b> ${title}\n<b>Type:</b> ${type}\n<b>ID:</b> <code>${id}</code>\n\n<a href="https://www.imdb.com/title/${id.split(':')[0]}">Open in IMDb</a>`;
-    
-    try {
-        const telegramUrl = `https://api.telegram.org/bot${decoded.t}/sendMessage`;
-        await fetch(telegramUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: decoded.c,
-                text: message,
-                parse_mode: 'HTML',
-                disable_web_page_preview: false
-            })
-        });
-    } catch (e) {
-        console.error('Telegram notification failed', e);
-    }
-
-    res.redirect('https://cdn.jsdelivr.net/gh/stremio/stremio-addon-helloworld@master/assets/success.mp4');
+        const message = `🎬 <b>Nouvelle Demande</b>\n\n<b>Titre:</b> ${title}\n<b>Type:</b> ${type}\n<b>ID:</b> <code>${id}</code>\n\n<a href="https://www.imdb.com/title/${id.split(':')[0]}">Ouvrir IMDb</a>`;
+        
+        try {
+            const telegramUrl = `https://api.telegram.org/bot${decoded.t}/sendMessage`;
+            await fetch(telegramUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: decoded.c,
+                    text: message,
+                    parse_mode: 'HTML'
+                })
+            });
+        } catch (e) {}
+    })();
 });
 
-// Root redirect to configure
 app.get('/', (req, res) => {
     res.redirect('/configure.html');
 });
