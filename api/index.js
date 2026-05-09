@@ -36,7 +36,7 @@ app.get('/:config/manifest.json', (req, res) => {
 
     const manifest = {
         id: 'com.family.requestbot',
-        version: '1.0.1',
+        version: '1.0.2',
         name: "Demande d'ajout",
         description: 'Demander des films et séries à l\'administrateur.',
         resources: ['stream'],
@@ -78,26 +78,29 @@ app.get('/:config/trigger/:type/:id', async (req, res) => {
     const { config, type, id } = req.params;
     const decoded = decodeConfig(config);
     
-    // 1. IMMEDIATE REDIRECT (Android TV Fix)
-    // We send the video immediately so the player sees 'data' and closes once it finishes.
-    // The CDN link is much faster than GitHub raw.
-    res.redirect('https://cdn.jsdelivr.net/gh/stremio/stremio-addon-helloworld@master/assets/success.mp4');
+    console.log(`Triggered request for ${id}`);
 
-    // 2. BACKGROUND PROCESSING
-    // The rest of the code runs asynchronously WITHOUT making the user wait.
-    if (!decoded || !decoded.t || !decoded.c) return;
+    if (!decoded || !decoded.t || !decoded.c) {
+        console.error("Invalid configuration decoded");
+        return res.status(400).send('Invalid configuration');
+    }
 
     const cacheKey = `${config}:${id}`;
     const now = Date.now();
-    if (cache.has(cacheKey) && now - cache.get(cacheKey) < 300000) return;
+    
+    // Check cache
+    if (cache.has(cacheKey) && now - cache.get(cacheKey) < 60000) { // 1 minute debounce
+        console.log("Request debounced (too soon)");
+        return res.redirect('https://cdn.jsdelivr.net/gh/stremio/stremio-addon-helloworld@master/assets/success.mp4');
+    }
     cache.set(cacheKey, now);
 
-    // Fetch Metadata & Notify in background
-    (async () => {
+    try {
+        // 1. Resolve Metadata (Awaited to ensure completion)
         let title = id;
         try {
             const imdbId = id.split(':')[0];
-            const metaRes = await fetch(`https://cinemeta-live.strem.io/meta/${type}/${imdbId}.json`);
+            const metaRes = await fetch(`https://cinemeta-live.strem.io/meta/${type}/${imdbId}.json`, { timeout: 3000 });
             const metaData = await metaRes.json();
             if (metaData && metaData.meta) {
                 title = metaData.meta.name;
@@ -106,23 +109,37 @@ app.get('/:config/trigger/:type/:id', async (req, res) => {
                     title += ` (S${parts[1]}E${parts[2]})`;
                 }
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error('Metadata lookup failed, using ID as title');
+        }
 
+        // 2. Send Telegram (Awaited to ensure completion)
         const message = `🎬 <b>Nouvelle Demande</b>\n\n<b>Titre:</b> ${title}\n<b>Type:</b> ${type}\n<b>ID:</b> <code>${id}</code>\n\n<a href="https://www.imdb.com/title/${id.split(':')[0]}">Ouvrir IMDb</a>`;
         
-        try {
-            const telegramUrl = `https://api.telegram.org/bot${decoded.t}/sendMessage`;
-            await fetch(telegramUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: decoded.c,
-                    text: message,
-                    parse_mode: 'HTML'
-                })
-            });
-        } catch (e) {}
-    })();
+        const telegramUrl = `https://api.telegram.org/bot${decoded.t}/sendMessage`;
+        const telResponse = await fetch(telegramUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: decoded.c,
+                text: message,
+                parse_mode: 'HTML'
+            }),
+            timeout: 5000
+        });
+
+        if (!telResponse.ok) {
+            console.error(`Telegram API error: ${telResponse.status}`);
+        } else {
+            console.log("Telegram notification sent successfully");
+        }
+
+    } catch (err) {
+        console.error("Error in trigger endpoint:", err);
+    }
+
+    // 3. Final Redirect (The player will close once it reaches this)
+    res.redirect('https://cdn.jsdelivr.net/gh/stremio/stremio-addon-helloworld@master/assets/success.mp4');
 });
 
 app.get('/', (req, res) => {
